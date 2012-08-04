@@ -1,9 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 11
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MsbuildAnalyzer.Common", "MsbuildAnalyzer.Common.csproj", "{0BC84F41-0D4C-4A4F-985B-7F9FBE9DE255}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MsbuildAnalyzer.Common", "MsbuildAnalyzer.Common\MsbuildAnalyzer.Common.csproj", "{0BC84F41-0D4C-4A4F-985B-7F9FBE9DE255}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MsbuildAnalyzer", "..\MsbuildAnalyzer\MsbuildAnalyzer.csproj", "{5A21303E-1883-441D-8354-13048F469B76}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MsbuildAnalyzer", "MsbuildAnalyzer\MsbuildAnalyzer.csproj", "{5A21303E-1883-441D-8354-13048F469B76}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
