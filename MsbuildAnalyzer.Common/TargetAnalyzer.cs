@@ -82,7 +82,6 @@
                 // create the report here
                 StringBuilder sb = new StringBuilder();
                 foreach (var v in verticesOrderedByNumDepends) {
-                    sb.Append(v.Name);
                     sb.AppendFormat(@"{0} ({1}) -----------------------------{2}", v.Name, v.GetNumDependentTargets(this.Project), Environment.NewLine);
                     foreach (var e in this.TargetGraph.OutEdges(v)) {
                         sb.AppendFormat(". {0}{1}", e.Target.Name, Environment.NewLine);
