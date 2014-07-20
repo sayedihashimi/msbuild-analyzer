@@ -34,6 +34,7 @@
     <Reference Include="Microsoft.Build.Engine" />
     <Reference Include="Microsoft.Build.Framework" />
     <Reference Include="Microsoft.Build.Tasks.v4.0" />
+    <Reference Include="Microsoft.Build.Utilities.v4.0" />
     <Reference Include="QuickGraph">
       <HintPath>packages\QuickGraph.3.6.61119.7\lib\net4\QuickGraph.dll</HintPath>
     </Reference>
@@ -57,6 +58,11 @@
   <ItemGroup>
     <Compile Include="Extensions\ProjectTargetInstanceExtension.cs" />
     <Compile Include="IAnalyzer.cs" />
+    <Compile Include="Loggers\BuildType.cs" />
+    <Compile Include="Loggers\FileLoggerBase.cs" />
+    <Compile Include="Loggers\DiagnosticXmlLogger.cs" />
+    <Compile Include="Loggers\XmlLogger.cs" />
+    <Compile Include="MSBuildComparer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="TargetAnalyzer.cs" />
   </ItemGroup>
