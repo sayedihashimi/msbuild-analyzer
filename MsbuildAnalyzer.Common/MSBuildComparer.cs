@@ -21,9 +21,7 @@
             List<string> rightPropertyNames = new List<string>(right.Count);
 
             Dictionary<string, string> leftPropValue = new Dictionary<string, string>(left.Count);
-            Dictionary<string, string> rightPropValue = new Dictionary<string, string>(right.Count);          
-
-            leftPropValue.SequenceEqual(rightPropValue);
+            Dictionary<string, string> rightPropValue = new Dictionary<string, string>(right.Count);
 
             foreach (var element in leftArray) {
                 leftPropertyNames.Add(element.Name);
