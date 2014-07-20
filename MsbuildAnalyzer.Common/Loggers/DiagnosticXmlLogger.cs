@@ -16,6 +16,14 @@
     /// copyright Sayed Ibrahim Hashimi 2005
     /// </summary>
     public class DiagnosticXmlLogger : FileLoggerBase {
+
+        public DiagnosticXmlLogger() : base() { }
+
+        private IBuildHelper _buildHelper;
+        public DiagnosticXmlLogger(IBuildHelper buildHelper):this() {
+            _buildHelper = buildHelper;
+        }
+
         #region Fields
         private IList<string> errorList;
         private IList<string> warningList;
@@ -49,7 +57,9 @@
             buildTypeList = new Stack<BuildType>();
 
             //apply default values
-            LogFile = "build.log.xml";
+            if (string.IsNullOrEmpty(LogFile)) {
+                LogFile = @"build.log.xml";
+            }
             Append = false;
             ShowSummary = false;
             comparer = new MSBuildComparer();
@@ -221,7 +231,8 @@
         }
         private ProjectInstance _targetStartedProjInstance;
         void TargetStarted(object sender, TargetStartedEventArgs e) {          
-            _targetStartedProjInstance = this.GetProjInstance(e.ProjectFile).DeepCopy();
+            // _targetStartedProjInstance = this.GetProjInstance(e.ProjectFile).DeepCopy();
+            _targetStartedProjInstance = this.GetProjInstanceById(e.BuildEventContext.ProjectInstanceId);
 
             buildTypeList.Push(BuildType.Target);
 
@@ -251,7 +262,7 @@
                 targetElement.Attributes.Append(CreateAttribute("FinishMessage", e.Message));
             }
 
-            var targetPropertyDiff = comparer.Compare(_targetStartedProjInstance.Properties, this.GetProjInstance(e.ProjectFile).Properties);
+            var targetPropertyDiff = comparer.Compare(_targetStartedProjInstance.Properties, this.GetProjInstanceById(e.BuildEventContext.ProjectInstanceId).Properties);
             if (!targetPropertyDiff.AreEqual) {
                 targetElement.AppendChild(GetChangesElementFor(targetPropertyDiff));
             }
@@ -259,14 +270,13 @@
             buildTypeList.Pop();
         }
 
-        private ProjectInstance GetProjInstance(string projectFile) {
-            if (_projInstance == null) {
-                _projInstance = Microsoft.Build.Execution.BuildManager.DefaultBuildManager.GetProjectInstanceForBuild(
-                    new Microsoft.Build.Evaluation.Project(projectFile));
+        private ProjectInstance GetProjInstanceById(int projectInstanceId) {
+            ProjectInstance result = null;
+            if (_buildHelper != null) {
+                result = _buildHelper.GetProjectInstanceById(projectInstanceId);
             }
-            return _projInstance;
+            return result;
         }
-        
         private XmlElement GetChangesElementFor(PropertyListCompareResult targetPropertyDiff) {
             var changesElement = xmlDoc.CreateElement("changes");
             if (!targetPropertyDiff.AreEqual) {
@@ -315,7 +325,7 @@
         }
         private ProjectInstance _taskStartedProjInstance;
         void TaskStarted(object sender, TaskStartedEventArgs e) {
-            _taskStartedProjInstance = GetProjInstance(e.ProjectFile).DeepCopy();
+            _taskStartedProjInstance = GetProjInstanceById(e.BuildEventContext.ProjectInstanceId);
             buildTypeList.Push(BuildType.Task);
 
             XmlElement taskElemet = xmlDoc.CreateElement("Task");
@@ -336,7 +346,7 @@
                 taskElement.Attributes.Append(CreateAttribute("TaskFile", e.TaskFile));
             }
 
-            var taskPropertyDiff = comparer.Compare(_targetStartedProjInstance.Properties, GetProjInstance(e.ProjectFile).Properties);
+            var taskPropertyDiff = comparer.Compare(_targetStartedProjInstance.Properties, GetProjInstanceById(e.BuildEventContext.ProjectInstanceId).Properties);
             if (!taskPropertyDiff.AreEqual) {
                 taskElement.AppendChild(GetChangesElementFor(taskPropertyDiff));
             }
