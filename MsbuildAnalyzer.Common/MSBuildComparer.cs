@@ -4,7 +4,7 @@
     using System.Collections.Generic;
     using System.Linq;
     using System.Text;
-
+    using MsbuildAnalyzer.Common.Extensions;
     public class MSBuildComparer {
 
         public class ProjectInstanceCompareResult {
@@ -276,9 +276,9 @@
             var mdNameValueY = new Dictionary<string, string>();
             foreach (var name in x.MetadataNames) {
                 // check that each metadata name has the same value on x and y
-                if (string.Compare(x.GetMetadataValue(name), y.GetMetadataValue(name), StringComparison.OrdinalIgnoreCase) != 0) {
-                    return 1;
-                }
+                //if (string.Compare(x.SafeGetMetadataValue(name), y.SafeGetMetadataValue(name), StringComparison.OrdinalIgnoreCase) != 0) {
+                //    return 1;
+                //}
             }
 
             // they are equal if we get to here

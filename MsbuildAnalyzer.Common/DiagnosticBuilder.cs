@@ -10,6 +10,7 @@
 
     public class DiagnosticBuilder : IBuildHelper {
         private ProjectCollection pc;
+        private Project project;
         private BuildManager buildManager;
         private BuildSubmission submission;
         private BuildResult buildResult;
@@ -26,18 +27,18 @@
 
         public void BuildAndAnalyze() {
             var globalProps = new Dictionary<string, string> {
-                {"Configuration","Release"},
                 {"DeployOnBuild","true"},
                 {"PublishProfile","PSBuildTest"},
                 {"Password","p3P3KLcwEFmvDyoMNlLhocPwzy4hr4heEwQzTQvYxm1B8sQirB9hbTYnfFMk"},
                 {"VisualStudioVersion","12.0"}
             };
             pc = new ProjectCollection(globalProps);
+            
             var diagLogger = new DiagnosticXmlLogger(this);
-            diagLogger.LogFile = _logFilepath;           
+            diagLogger.LogFile = _logFilepath;
 
-            var proj = pc.LoadProject(_projectFilepath);
-            projInst = proj.CreateProjectInstance();
+            project = pc.LoadProject(_projectFilepath, "12.0");
+            projInst = project.CreateProjectInstance();
             buildManager = new BuildManager();
             var buildParams = new BuildParameters();
             buildParams.Loggers = new ILogger[] { diagLogger };
@@ -48,6 +49,8 @@
             buildResult = submission.Execute();
 
             buildManager.EndBuild();
+
+            
         }
 
         public ProjectInstance GetProjectInstanceById(int projectInstanceId) {
@@ -66,6 +69,8 @@
                 }
                 catch (InvalidOperationException) { }
             }
+
+            
 
             return result;            
         }

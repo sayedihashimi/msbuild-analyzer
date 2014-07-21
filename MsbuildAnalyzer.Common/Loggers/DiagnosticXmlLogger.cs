@@ -7,6 +7,7 @@
     using Microsoft.Build.Framework;
     using Microsoft.Build.Execution;
     using System.IO;
+    using MsbuildAnalyzer.Common.Extensions;
 
     /// <summary>
     /// This class will be used as an MSBuild logger that will output an XML log file.
@@ -27,6 +28,7 @@
         #region Fields
         private IList<string> errorList;
         private IList<string> warningList;
+        private IList<string> allTargetsExecuted;
 
         private XmlDocument xmlDoc;
         private XmlElement rootElement;
@@ -76,6 +78,7 @@
         /// <param name="eventSource"></param>
         protected void InitializeEvents(IEventSource eventSource) {
             try {
+                allTargetsExecuted = new List<string>();
                 eventSource.BuildStarted +=
                     new BuildStartedEventHandler(this.BuildStarted);
                 eventSource.BuildFinished +=
@@ -180,8 +183,9 @@
 
             buildTypeList.Pop();
         }
-        private Microsoft.Build.Execution.ProjectInstance _projInstance;
+
         void ProjectStarted(object sender, ProjectStartedEventArgs e) {
+            _projectStartedProjInstance = this.GetProjInstanceById(e.BuildEventContext.ProjectInstanceId);
             buildTypeList.Push(BuildType.Project);
 
             XmlElement projectElement = xmlDoc.CreateElement("Project");
@@ -225,14 +229,26 @@
         void ProjectFinished(object sender, ProjectFinishedEventArgs e) {
             XmlElement projectElement = projectElements.Pop();
 
+            // add targets executed element
+            var teElement = xmlDoc.CreateElement("targets-executed");
+            projectElement.AppendChild(teElement);
+            foreach (var name in allTargetsExecuted) {
+                var targetElement = xmlDoc.CreateElement(name);
+                teElement.AppendChild(targetElement);
+            }
+
+            var projInstDiff = comparer.Compare(_projectStartedProjInstance, this.GetProjInstanceById(e.BuildEventContext.ProjectInstanceId));
+            if (!projInstDiff.AreEqual) {
+                projectElement.AppendChild(GetChangesElementFor(projInstDiff));
+            }
+
             projectElement.Attributes.Append(CreateFinishedAttribute(e.Timestamp));
 
             buildTypeList.Pop();
         }
-        private ProjectInstance _targetStartedProjInstance;
-        void TargetStarted(object sender, TargetStartedEventArgs e) {          
-            _targetStartedProjInstance = this.GetProjInstanceById(e.BuildEventContext.ProjectInstanceId);
-
+        private ProjectInstance _projectStartedProjInstance;
+        void TargetStarted(object sender, TargetStartedEventArgs e) {
+            allTargetsExecuted.Add(e.TargetName);
             buildTypeList.Push(BuildType.Target);
 
             XmlElement targetElement = xmlDoc.CreateElement("Target");
@@ -260,12 +276,7 @@
             if (base.IsVerbosityAtLeast(LoggerVerbosity.Detailed)) {
                 targetElement.Attributes.Append(CreateAttribute("FinishMessage", e.Message));
             }
-
-            var projInstDiff = comparer.Compare(_targetStartedProjInstance, this.GetProjInstanceById(e.BuildEventContext.ProjectInstanceId));
-            if (!projInstDiff.AreEqual) {
-                targetElement.AppendChild(GetChangesElementFor(projInstDiff));
-            }
-
+            
             buildTypeList.Pop();
         }
 
@@ -298,7 +309,7 @@
 
                 foreach (var item in compareResult.ItemsChanged) {
                     var itemElement = xmlDoc.CreateElement(XmlEscape(GetNameFor(item.Item1)));
-                    changesElement.AppendChild(itemElement);
+                    changedItemsElement.AppendChild(itemElement);
 
                     var prevElement = xmlDoc.CreateElement("previous");
                     prevElement.AppendChild(GetElementFor(item.Item1));
@@ -307,6 +318,22 @@
                     var currentElement = xmlDoc.CreateElement("current");
                     currentElement.AppendChild(GetElementFor(item.Item2));
                     itemElement.AppendChild(currentElement);
+                }
+            }
+            if (compareResult.ItemsOnlyInRight.Count > 0) {
+                var itemsAddedElement = xmlDoc.CreateElement("new-items");
+                changesElement.AppendChild(itemsAddedElement);
+
+                foreach (var item in compareResult.ItemsOnlyInRight) {
+                    itemsAddedElement.AppendChild(GetElementFor(item));
+                }
+            }
+            if (compareResult.ItemsOnlyInLeft.Count > 0) {
+                var itemsRemovedElement = xmlDoc.CreateElement("removed-items");
+                changesElement.AppendChild(itemsRemovedElement);
+
+                foreach (var item in compareResult.ItemsOnlyInLeft) {
+                    itemsRemovedElement.AppendChild(GetElementFor(item));
                 }
             }
 
@@ -320,13 +347,14 @@
             itemElement.Attributes.Append(CreateAttribute("ItemType", item.ItemType));
             itemElement.Attributes.Append(CreateAttribute("EvaluatedInclude", item.EvaluatedInclude));
             itemElement.Attributes.Append(CreateAttribute("MetadataCount", item.MetadataCount.ToString()));
-            var metadataElement = xmlDoc.CreateElement("metadata");
-            itemElement.AppendChild(metadataElement);
-            foreach (var name in item.MetadataNames) {
-                var mdElement = xmlDoc.CreateElement(XmlEscape(name));
-                mdElement.Attributes.Append(CreateAttribute(name, item.GetMetadataValue(name)));
-                metadataElement.AppendChild(mdElement);
-            }
+
+            //var metadataElement = xmlDoc.CreateElement("metadata");
+            //itemElement.AppendChild(metadataElement);
+            //foreach (var name in item.MetadataNames) {
+            //    var mdElement = xmlDoc.CreateElement(XmlEscape(name));
+            //    //mdElement.Attributes.Append(CreateAttribute(name, item.SafeGetMetadataValue(name)));
+            //    metadataElement.AppendChild(mdElement);
+            //}
 
             return itemElement;
         }
@@ -389,7 +417,7 @@
         }
         private ProjectInstance _taskStartedProjInstance;
         void TaskStarted(object sender, TaskStartedEventArgs e) {
-            _taskStartedProjInstance = GetProjInstanceById(e.BuildEventContext.ProjectInstanceId);
+            //_taskStartedProjInstance = GetProjInstanceById(e.BuildEventContext.ProjectInstanceId);
             buildTypeList.Push(BuildType.Task);
 
             XmlElement taskElemet = xmlDoc.CreateElement("Task");
@@ -410,10 +438,10 @@
                 taskElement.Attributes.Append(CreateAttribute("TaskFile", e.TaskFile));
             }
 
-            var taskProjInstDiff = comparer.Compare(_targetStartedProjInstance, GetProjInstanceById(e.BuildEventContext.ProjectInstanceId));
-            if (!taskProjInstDiff.AreEqual) {
-                taskElement.AppendChild(GetChangesElementFor(taskProjInstDiff));
-            }
+            //var taskProjInstDiff = comparer.Compare(_projectStartedProjInstance, GetProjInstanceById(e.BuildEventContext.ProjectInstanceId));
+            //if (!taskProjInstDiff.AreEqual) {
+            //    taskElement.AppendChild(GetChangesElementFor(taskProjInstDiff));
+            //}
 
             buildTypeList.Pop();
         }
