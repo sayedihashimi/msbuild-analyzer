@@ -27,9 +27,6 @@
 
         public void BuildAndAnalyze() {
             var globalProps = new Dictionary<string, string> {
-                {"DeployOnBuild","true"},
-                {"PublishProfile","PSBuildTest"},
-                {"Password","p3P3KLcwEFmvDyoMNlLhocPwzy4hr4heEwQzTQvYxm1B8sQirB9hbTYnfFMk"},
                 {"VisualStudioVersion","12.0"}
             };
             pc = new ProjectCollection(globalProps);
