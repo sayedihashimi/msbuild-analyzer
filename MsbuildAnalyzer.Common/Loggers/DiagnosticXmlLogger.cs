@@ -231,7 +231,6 @@
         }
         private ProjectInstance _targetStartedProjInstance;
         void TargetStarted(object sender, TargetStartedEventArgs e) {          
-            // _targetStartedProjInstance = this.GetProjInstance(e.ProjectFile).DeepCopy();
             _targetStartedProjInstance = this.GetProjInstanceById(e.BuildEventContext.ProjectInstanceId);
 
             buildTypeList.Push(BuildType.Target);
@@ -262,9 +261,9 @@
                 targetElement.Attributes.Append(CreateAttribute("FinishMessage", e.Message));
             }
 
-            var targetPropertyDiff = comparer.Compare(_targetStartedProjInstance.Properties, this.GetProjInstanceById(e.BuildEventContext.ProjectInstanceId).Properties);
-            if (!targetPropertyDiff.AreEqual) {
-                targetElement.AppendChild(GetChangesElementFor(targetPropertyDiff));
+            var projInstDiff = comparer.Compare(_targetStartedProjInstance, this.GetProjInstanceById(e.BuildEventContext.ProjectInstanceId));
+            if (!projInstDiff.AreEqual) {
+                targetElement.AppendChild(GetChangesElementFor(projInstDiff));
             }
 
             buildTypeList.Pop();
@@ -277,15 +276,45 @@
             }
             return result;
         }
-        private XmlElement GetChangesElementFor(PropertyListCompareResult targetPropertyDiff) {
+        private XmlElement GetChangesElementFor(MsbuildAnalyzer.Common.MSBuildComparer.ProjectInstanceCompareResult compareResult) {
             var changesElement = xmlDoc.CreateElement("changes");
+
+            if (!compareResult.PropertyCompareResult.AreEqual) {
+                changesElement.AppendChild(GetChangesElementFor(compareResult.PropertyCompareResult));
+            }
+
+            if (!compareResult.ItemListColCompareResult.AreEqual) {
+                changesElement.AppendChild(GetChangesElementFor(compareResult.ItemListColCompareResult));
+            }
+
+            return changesElement;
+        }
+        private XmlElement GetChangesElementFor(ItemListCollectionCompareResult compareResult) {
+            var changesElement = xmlDoc.CreateElement("all-item-changes");
+
+            if (compareResult.ItemsChanged.Count > 0) {
+                var changedItemsElement = xmlDoc.CreateElement("modified-items");
+                changesElement.AppendChild(changedItemsElement);
+
+                foreach (var item in compareResult.ItemsChanged) {
+                
+                }
+            }
+
+            return changesElement;
+        }
+        private XmlElement GetElementFor() {
+            throw new NotImplementedException();
+        }
+        private XmlElement GetChangesElementFor(PropertyListCompareResult targetPropertyDiff) {
+            var changesElement = xmlDoc.CreateElement("all-property-changes");
             if (!targetPropertyDiff.AreEqual) {
-                if (targetPropertyDiff.ChangedProperties.Count > 0) {
+                if (targetPropertyDiff.PropertiesChanged.Count > 0) {
                     // changed properties
-                    var changedPropsElement = xmlDoc.CreateElement("changed-properties");
+                    var changedPropsElement = xmlDoc.CreateElement("modified-properties");
                     changesElement.AppendChild(changedPropsElement);
 
-                    foreach (var prop in targetPropertyDiff.ChangedProperties) {
+                    foreach (var prop in targetPropertyDiff.PropertiesChanged) {
                         changedPropsElement.AppendChild(CreateElementFor(prop));
                     }
                 }
@@ -346,9 +375,9 @@
                 taskElement.Attributes.Append(CreateAttribute("TaskFile", e.TaskFile));
             }
 
-            var taskPropertyDiff = comparer.Compare(_targetStartedProjInstance.Properties, GetProjInstanceById(e.BuildEventContext.ProjectInstanceId).Properties);
-            if (!taskPropertyDiff.AreEqual) {
-                taskElement.AppendChild(GetChangesElementFor(taskPropertyDiff));
+            var taskProjInstDiff = comparer.Compare(_targetStartedProjInstance, GetProjInstanceById(e.BuildEventContext.ProjectInstanceId));
+            if (!taskProjInstDiff.AreEqual) {
+                taskElement.AppendChild(GetChangesElementFor(taskProjInstDiff));
             }
 
             buildTypeList.Pop();

@@ -36,7 +36,13 @@
 
         // this method is not being called yet, this is just prototype. i'll refactor
         private static void BuildAndAnalyze() {
-            new DiagnosticBuilder(@"C:\temp\msbuild\WebApplication1\WebApplication1.csproj", @"c:\temp\msbuild\log2.xml", new string[] { "Build" }).BuildAndAnalyze();            
+            new DiagnosticBuilder(@"C:\temp\msbuild\WebApplication1\WebApplication1.csproj", @"c:\temp\msbuild\log2.xml", new string[] { "Build" }).BuildAndAnalyze();
+
+            ProjectInstance pi = null;
+
+            
+
+
         }
 
         static void PrintUsage() {
