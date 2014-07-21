@@ -297,14 +297,49 @@
                 changesElement.AppendChild(changedItemsElement);
 
                 foreach (var item in compareResult.ItemsChanged) {
-                
+                    var itemElement = xmlDoc.CreateElement(XmlEscape(GetNameFor(item.Item1)));
+                    changesElement.AppendChild(itemElement);
+
+                    var prevElement = xmlDoc.CreateElement("previous");
+                    prevElement.AppendChild(GetElementFor(item.Item1));
+                    itemElement.AppendChild(prevElement);
+
+                    var currentElement = xmlDoc.CreateElement("current");
+                    currentElement.AppendChild(GetElementFor(item.Item2));
+                    itemElement.AppendChild(currentElement);
                 }
             }
 
             return changesElement;
         }
-        private XmlElement GetElementFor() {
-            throw new NotImplementedException();
+        private string GetNameFor(ProjectItemInstance item) {
+            return string.Format("{0}:{1}", item.ItemType, item.EvaluatedInclude);
+        }
+        private XmlElement GetElementFor(ProjectItemInstance item) {
+            var itemElement = xmlDoc.CreateElement("item");
+            itemElement.Attributes.Append(CreateAttribute("ItemType", item.ItemType));
+            itemElement.Attributes.Append(CreateAttribute("EvaluatedInclude", item.EvaluatedInclude));
+            itemElement.Attributes.Append(CreateAttribute("MetadataCount", item.MetadataCount.ToString()));
+            var metadataElement = xmlDoc.CreateElement("metadata");
+            itemElement.AppendChild(metadataElement);
+            foreach (var name in item.MetadataNames) {
+                var mdElement = xmlDoc.CreateElement(XmlEscape(name));
+                mdElement.Attributes.Append(CreateAttribute(name, item.GetMetadataValue(name)));
+                metadataElement.AppendChild(mdElement);
+            }
+
+            return itemElement;
+        }
+        
+        public static string XmlEscape(string unescaped) {
+            return unescaped;
+
+            // not sure if this is needed
+            // http://stackoverflow.com/questions/1132494/string-escape-into-xml
+            XmlDocument doc = new XmlDocument();
+            XmlNode node = doc.CreateElement("root");
+            node.InnerText = unescaped;
+            return node.InnerXml;
         }
         private XmlElement GetChangesElementFor(PropertyListCompareResult targetPropertyDiff) {
             var changesElement = xmlDoc.CreateElement("all-property-changes");
@@ -526,8 +561,8 @@
         }
         protected XmlAttribute CreateAttribute(string name, string value) {
             try {
-                XmlAttribute att = xmlDoc.CreateAttribute(name);
-                att.Value = value;
+                XmlAttribute att = xmlDoc.CreateAttribute(XmlEscape(name));
+                att.Value = XmlEscape(value);
                 return att;
             }
             catch (Exception /*e*/) {

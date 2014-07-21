@@ -120,7 +120,9 @@
 
             return retValue;
         }
-
+        private string GetNameFor(ProjectItemInstance item) {
+            return string.Format("{0}:{1}", item.ItemType, item.EvaluatedInclude);
+        }
         public ItemListCollectionCompareResult Compare(ICollection<ProjectItemInstance> left, ICollection<ProjectItemInstance> right) {
             var leftArray = left.ToArray();
             var rightArray = right.ToArray();
@@ -135,13 +137,13 @@
             var leftItems = new Dictionary<string, ProjectItemInstance>();
             var rightItems = new Dictionary<string, ProjectItemInstance>();
             foreach (var item in left) {
-                leftItemNames.Add(item.ItemType);
-                leftItems[item.ItemType] = item;
+                leftItemNames.Add(GetNameFor(item));
+                leftItems[GetNameFor(item)] = item;
             }
 
             foreach (var item in right) {
-                rightItemNames.Add(item.ItemType);
-                rightItems[item.ItemType] = item;
+                rightItemNames.Add(string.Format("{0}:{1}", item.ItemType, item.EvaluatedInclude));
+                rightItems[GetNameFor(item)] = item;
             }
 
             var result = new ItemListCollectionCompareResult();
@@ -153,6 +155,7 @@
                                      select leftItemName;
 
             foreach (var name in elementsOnlyInLeft) {
+                // result.ItemsOnlyInLeft.Add(leftItems[string.Format("{0}:{1}", item.ItemType, item.EvaluatedInclude)]);
                 result.ItemsOnlyInLeft.Add(leftItems[name]);
             }
 
