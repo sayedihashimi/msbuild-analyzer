@@ -30,6 +30,9 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="MarkdownLog">
+      <HintPath>..\contrib\MarkdownLog.dll</HintPath>
+    </Reference>
     <Reference Include="Microsoft.Build" />
     <Reference Include="Microsoft.Build.Engine" />
     <Reference Include="Microsoft.Build.Framework" />
@@ -64,6 +67,7 @@
     <Compile Include="Loggers\BuildType.cs" />
     <Compile Include="Loggers\FileLoggerBase.cs" />
     <Compile Include="Loggers\DiagnosticXmlLogger.cs" />
+    <Compile Include="Loggers\MarkdownLogger.cs" />
     <Compile Include="Loggers\XmlLogger.cs" />
     <Compile Include="MSBuildComparer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
