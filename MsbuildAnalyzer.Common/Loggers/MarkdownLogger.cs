@@ -16,15 +16,29 @@
     /// </summary>
     public class MarkdownLogger : Microsoft.Build.Utilities.Logger {
         #region Fields
-        private string fileName;
-        private StringBuilder messages;
-        private IDictionary<string, string> paramaterBag;
+        private string _fileName;
+        private StringBuilder _messages;
+        private IDictionary<string, string> _paramaterBag;
+        
+        private Dictionary<string, TargetExecutionInfo> _targetsExecuted;
+        private Stack<TargetStartedInfo> _targetsStarted;
+        
+        private Dictionary<string, TaskExecutionInfo> _taskExecuted;
+        private Stack<TaskStartedEventArgs> _tasksStarted;
         #endregion
+
+        public MarkdownLogger() {
+            this._targetsExecuted = new Dictionary<string, TargetExecutionInfo>();
+            this._targetsStarted = new Stack<TargetStartedInfo>();
+
+            this._taskExecuted = new Dictionary<string, TaskExecutionInfo>();
+            this._tasksStarted = new Stack<TaskStartedEventArgs>();
+        }
 
         #region ILogger Members
         public override void Initialize(IEventSource eventSource) {
-            fileName = "build.log.md";
-            messages = new StringBuilder();
+            _fileName = "build.log.md";
+            _messages = new StringBuilder();
 
             //Register for the events here
             eventSource.BuildStarted +=
@@ -53,7 +67,7 @@
             this.InitializeParameters();
         }
         public override void Shutdown() {
-            System.IO.File.WriteAllText(fileName, messages.ToString());
+            System.IO.File.WriteAllText(_fileName, _messages.ToString());
         }
         #endregion
         #region Logging handlers
@@ -67,23 +81,49 @@
                     };
 
             AppendLine(r.ToMarkdownTable().ToMarkdown());
+            if (IsVerbosityAtLeast(LoggerVerbosity.Detailed)) {
+                AppendLine(e.ToPropertyValues().ToMarkdownTable().ToMarkdown());
+            }
         }
         void BuildFinished(object sender, BuildFinishedEventArgs e) {
             AppendLine(string.Format("#Build Finished"));
+            if (IsVerbosityAtLeast(LoggerVerbosity.Detailed)) {
+                AppendLine(e.ToPropertyValues().ToMarkdownTable().ToMarkdown());
+            }
+
+            AppendLine("Target summary".ToMarkdownSubHeader().ToMarkdown());
+            var targetSummary = from t in this._targetsExecuted
+                     orderby  t.Value.TimeSpent descending
+                     select new Tuple<string, int>(t.Value.Name, t.Value.TimeSpent.Milliseconds);
+
+            AppendLine(targetSummary.ToList().ToMarkdownBarChart().ToMarkdown());
+
+            AppendLine("Task summary".ToMarkdownSubHeader().ToMarkdown());
+            var taskSummary = from t in this._taskExecuted
+                                orderby t.Value.TimeSpent descending
+                                select new Tuple<string, int>(t.Value.Name, t.Value.TimeSpent.Milliseconds);
+
+            AppendLine(taskSummary.ToList().ToMarkdownBarChart().ToMarkdown());
         }
         void ProjectStarted(object sender, ProjectStartedEventArgs e) {
-            // e.TargetNames
-            // e.ProjectFile
-            // e.Properties
-
             AppendLine(string.Format("##Project Started:{0}", e.ProjectFile));
             AppendLine(string.Format(@"_{0}_<br/>", e.Message.EscapeMarkdownCharacters()));
             AppendLine(string.Format("_{0}|targets=({1})|{2}_", e.Timestamp, e.TargetNames, e.ProjectFile));
+
+            if (IsVerbosityAtLeast(LoggerVerbosity.Detailed)) {
+                AppendLine(e.ToPropertyValues().ToMarkdownTable().ToMarkdown());
+            }
         }
         void ProjectFinished(object sender, ProjectFinishedEventArgs e) {
             AppendLine(string.Format("##ProjectFinished:{0}", e.Message.EscapeMarkdownCharacters()));
+
+            if (IsVerbosityAtLeast(LoggerVerbosity.Detailed)) {
+                AppendLine(e.ToPropertyValues().ToMarkdownTable().ToMarkdown());
+            }
         }
+        
         void TargetStarted(object sender, TargetStartedEventArgs e) {
+            _targetsStarted.Push(new TargetStartedInfo { TargetStartedArgs = e });
             AppendLine(string.Format("####{0}", e.TargetName));
 
             if (IsVerbosityAtLeast(LoggerVerbosity.Detailed)) {
@@ -91,13 +131,24 @@
             }
         }
         void TargetFinished(object sender, TargetFinishedEventArgs e) {
-            AppendLine(string.Format("####TargetFinished:{0}", e.Message.EscapeMarkdownCharacters()));
+            var startInfo = _targetsStarted.Pop();
 
-            //if (IsVerbosityAtLeast(LoggerVerbosity.Detailed)) {
-            //    AppendLine(e.ToPropertyValues().ToMarkdownTable().ToMarkdown());
-            //}
+            // var execInfo = new TargetExecutionInfo(startInfo.TargetStartedArgs, e);
+            var execInfo = new TargetExecutionInfo(startInfo.TargetStartedArgs, e);
+            // see if the target is already in the executed list
+            TargetExecutionInfo previoudExecInfo;
+            this._targetsExecuted.TryGetValue(e.TargetName, out previoudExecInfo);
+
+            if (previoudExecInfo != null) {
+                execInfo.TimeSpent = execInfo.TimeSpent.Add(previoudExecInfo.TimeSpent);
+            }
+
+            this._targetsExecuted[execInfo.Name] = execInfo;
+
+            AppendLine(string.Format("####TargetFinished:{0}", e.Message.EscapeMarkdownCharacters()));
         }
         void TaskStarted(object sender, TaskStartedEventArgs e) {
+            _tasksStarted.Push(e);
             AppendLine(string.Format("#####Task Started:{0}", e.Message.EscapeMarkdownCharacters()));
 
             if (IsVerbosityAtLeast(LoggerVerbosity.Detailed)) {
@@ -106,6 +157,21 @@
         }
         void TaskFinished(object sender, TaskFinishedEventArgs e) {
             AppendLine(string.Format("#####Task Finished:{0}", e.Message.EscapeMarkdownCharacters()));
+
+            if (IsVerbosityAtLeast(LoggerVerbosity.Detailed)) {
+                AppendLine(e.ToPropertyValues().ToMarkdownTable().ToMarkdown());
+            }
+            var startInfo = _tasksStarted.Pop();
+            var execInfo = new TaskExecutionInfo(startInfo, e);
+
+            TaskExecutionInfo previousExecInfo;
+            this._taskExecuted.TryGetValue(e.TaskName, out previousExecInfo);
+
+            if (previousExecInfo != null) {
+                execInfo.TimeSpent = execInfo.TimeSpent.Add(previousExecInfo.TimeSpent);
+            }
+
+            this._taskExecuted[execInfo.Name] = execInfo;
         }
         void BuildError(object sender, BuildErrorEventArgs e) {
             AppendLine(string.Format("*ERROR*:{0}", e.Message).ToMarkdownHeader().ToMarkdown());
@@ -115,13 +181,29 @@
         }
         void BuildMessage(object sender, BuildMessageEventArgs e) {
             AppendLine(string.Format("\r\n{0} _{1}_", e.Message.EscapeMarkdownCharacters(), e.Timestamp.ToString().EscapeMarkdownCharacters()));
-            //e.Importance;
-            //e.Message;
-            //e.Timestamp;
+
+            string formatStr = null;
+            switch (e.Importance) {
+                case MessageImportance.High:
+                    formatStr = "\r\n{0} *{1}*";
+                    break;
+                case MessageImportance.Normal:
+                case MessageImportance.Low:
+                    formatStr = "\r\n{0} {1}";
+                    break;
+                default:
+                    throw new LoggerException(string.Format("Unknown message importance {0}", e.Importance));
+            }
+
+            string msg = string.Format(formatStr, e.Message.EscapeMarkdownCharacters(), e.Timestamp.ToString().EscapeMarkdownCharacters());
+
+            if (e.Importance != MessageImportance.Low || IsVerbosityAtLeast(LoggerVerbosity.Detailed) ) {
+                AppendLine(msg);
+            }
         }
         #endregion
         protected void AppendLine(string line) {
-            messages.AppendLine(line);
+            _messages.AppendLine(line);
         }
 
 
@@ -133,7 +215,7 @@
         /// </summary>
         protected virtual void InitializeParameters() {
             try {
-                this.paramaterBag = new Dictionary<string, string>();
+                this._paramaterBag = new Dictionary<string, string>();
                 if (!string.IsNullOrEmpty(Parameters)) {
                     foreach (string paramString in this.Parameters.Split(";".ToCharArray())) {
                         string[] keyValue = paramString.Split("=".ToCharArray());
@@ -164,7 +246,7 @@
                     switch (name.Trim().ToUpper()) {
                         case ("LOGFILE"):
                         case ("L"):
-                            this.fileName = value;
+                            this._fileName = value;
                             break;
 
                         case ("VERBOSITY"):
@@ -218,30 +300,6 @@
                     default:
                         throw new LoggerException("Unable to process the verbosity: " + level);
                 }
-
-                //if(string.Compare("quiet",level,StringComparison.OrdinalIgnoreCase)==0 ||
-                //   string.Compare("q", level, StringComparison.OrdinalIgnoreCase) == 0) {
-                //       this.Verbosity = LoggerVerbosity.Quiet;
-                //}
-                //else if(string.Compare("minimal",level,StringComparison.OrdinalIgnoreCase)==0||
-                //        string.Compare("m", level, StringComparison.OrdinalIgnoreCase) == 0) {
-                //            this.Verbosity = LoggerVerbosity.Minimal;
-                //}
-                //else if(string.Compare("normal",level,StringComparison.OrdinalIgnoreCase)==0||
-                //        string.Compare("n", level, StringComparison.OrdinalIgnoreCase) == 0) {
-                //            this.Verbosity = LoggerVerbosity.Normal;
-                //}
-                //else if(string.Compare("detailed",level,StringComparison.OrdinalIgnoreCase)==0 ||
-                //        string.Compare("d", level, StringComparison.OrdinalIgnoreCase) == 0) {
-                //            this.Verbosity = LoggerVerbosity.Detailed;
-                //}
-                //else if(string.Compare("diagnostic",level,StringComparison.OrdinalIgnoreCase)==0 ||
-                //        string.Compare("diag", level, StringComparison.OrdinalIgnoreCase) == 0) {
-                //            this.Verbosity = LoggerVerbosity.Diagnostic;
-                //}
-                //else {
-                //    throw new LoggerException("Unable to process the verbosity: " + level);
-                //}
             }
         }
 
@@ -257,9 +315,9 @@
 
             string paramKey = name.ToUpper();
             try {
-                if (paramaterBag.ContainsKey(paramKey)) { paramaterBag.Remove(paramKey); }
+                if (_paramaterBag.ContainsKey(paramKey)) { _paramaterBag.Remove(paramKey); }
 
-                paramaterBag.Add(paramKey, value);
+                _paramaterBag.Add(paramKey, value);
             }
             catch (Exception e) {
                 throw new LoggerException("Unable to add to parameters bag", e);
@@ -277,11 +335,34 @@
             string paramName = name.ToUpper();
 
             string value = null;
-            if (paramaterBag.ContainsKey(paramName)) {
-                value = paramaterBag[paramName];
+            if (_paramaterBag.ContainsKey(paramName)) {
+                value = _paramaterBag[paramName];
             }
 
             return value;
         }
+    }
+    public class TargetExecutionInfo {
+        public TargetExecutionInfo() {
+
+        }
+        public TargetExecutionInfo(TargetStartedEventArgs startedArgs, TargetFinishedEventArgs finishedArgs) : this() {
+            this.Name = startedArgs.TargetName;
+            this.TimeSpent = finishedArgs.Timestamp.Subtract(startedArgs.Timestamp);
+        }
+        public string Name { get; set; }
+        public TimeSpan TimeSpent { get; set; }
+    }
+    public class TargetStartedInfo {
+        public TargetStartedEventArgs TargetStartedArgs { get; set; }
+    }
+    public class TaskExecutionInfo{
+        public TaskExecutionInfo() { }
+        public TaskExecutionInfo(TaskStartedEventArgs startedArgs, TaskFinishedEventArgs finishedArgs) {
+            this.Name = startedArgs.TaskName;
+            this.TimeSpent = finishedArgs.Timestamp.Subtract(startedArgs.Timestamp);
+        }
+        public string Name { get; set; }
+        public TimeSpan TimeSpent { get; set; }
     }
 }
